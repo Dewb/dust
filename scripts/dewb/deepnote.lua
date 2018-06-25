@@ -91,7 +91,17 @@ hid.add = function (device)
    setPad(device)
 end
 
-local notes = {}
+function shuffle(tbl)
+  size = #tbl
+  for i = size, 1, -1 do
+    local rand = math.random(size)
+    tbl[i], tbl[rand] = tbl[rand], tbl[i]
+  end
+  return tbl
+end
+
+local notes_destination = shuffle({90, 86, 81, 74, 69, 62, 57, 50, 45, 38, 26, 90, 86, 81, 74, 69, 62, 57, 50, 45, 38, 26, 90, 86, 81, 74, 69, 62, 57, 50})
+local notes_current = {}
 
 function init()
 
@@ -104,7 +114,9 @@ function init()
   
   
   for i = 1, 30 do
-    notes[i] = math.random(21, 84)
+    --notes_destination[i] = math.random(26, 90)
+    notes_current[i] = math.random(46, 70)
+    --notes_current[i] = notes_destination[i]
   end
   
 end
@@ -117,7 +129,8 @@ function delta_axis(axis, delta)
   axis["val"] = util.clamp(axis["val"] + delta, axis["min"], axis["max"])
 end
   
-local editaxis = 0
+local editaxis = 2
+local editnote = 0
 local edit_axis_list = {"x axis", "y axis", "throttle"}
 
 function enc(n, delta)
@@ -125,12 +138,16 @@ function enc(n, delta)
     mix:delta("output", delta)
     print(delta)
   elseif n == 2 then
+    notes_destination[editnote+1] = util.clamp(notes_destination[editnote+1] + delta, 26, 90)
+  elseif n == 3 then
     delta_axis(axes[edit_axis_list[editaxis+1]], delta)
   end
 end
 
 function key(n, z)
   if n == 2 and z == 1 then
+    editnote = (editnote + 1) % #notes_destination
+  elseif n == 3 and z == 1 then
     editaxis = (editaxis + 1) % #edit_axis_list
   end
 end
@@ -138,15 +155,21 @@ end
 function redraw()
   screen.clear()
 
-  screen.level(1)
   for i = 1, 30 do
-    screen_pixel(i-1, notes[i] - 32)
-    --screen_pixel(i*2-1, notes[i] - 32)
+    screen.level(2)
+    screen.move(46 - i, notes_destination[i] - 26)
+    screen.line(0, notes_current[i] - 26)
+    screen.stroke()
   end
-  screen.stroke()
 
-  draw_two_axis_circle(28, 85, 32, axes["x axis"], axes["y axis"], editaxis < 2 and 15 or 5)
-  draw_vertical_axis(122, 5, 60, 6, axes["throttle"], editaxis == 2 and 15 or 5)
+  for i = 1, 30 do
+    screen.level(i == editnote + 1 and 16 or 5)
+    screen.circle(46 - i, notes_destination[i] - 26, 2)
+    screen.fill()
+  end
+
+  draw_two_axis_circle(27, 84, 32, axes["x axis"], axes["y axis"], editaxis < 2 and 15 or 5)
+  draw_vertical_axis(122, 6, 60, 6, axes["throttle"], editaxis == 2 and 15 or 5)
 
   screen.update()
 end  
