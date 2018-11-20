@@ -16,11 +16,15 @@ engine.name = 'Ack'
 local g = grid.connect()
 
 local ack = require 'jah/ack'
+
+if (package.loaded['beatclock'] ~= nil) then
+  package.loaded['beatclock'] = nil
+  _G['beatclock'] = nil
+end
+  
 local BeatClock = require 'beatclock'
 
 local clk = BeatClock.new()
-local clk_midi = midi.connect()
-clk_midi.event = clk.process_midi
 
 local reset = false
 local alt = false

@@ -61,10 +61,6 @@ local edit_pos = 1
 
 local BeatClock = require 'beatclock'
 local clk = BeatClock.new()
-local clk_midi = midi.connect()
-clk_midi.event = function(data)
-  clk:process_midi(data)
-end
 
 local notes_off_metro = metro.alloc()
 
@@ -166,9 +162,9 @@ function init()
   
   params:add{type = "option", id = "step_length", name = "step length", options = options.STEP_LENGTH_NAMES, default = 6,
     action = function(value)
-      clk.ticks_per_step = 96 / options.STEP_LENGTH_DIVIDERS[value]
-      clk.steps_per_beat = options.STEP_LENGTH_DIVIDERS[value] / 4
-      clk:bpm_change(clk.bpm)
+      clk.master.ticks_per_step = 96 / options.STEP_LENGTH_DIVIDERS[value]
+      clk.master.steps_per_beat = options.STEP_LENGTH_DIVIDERS[value] / 4
+      clk.master:bpm_change(params:get("bpm"))
     end}
   params:add{type = "option", id = "note_length", name = "note length",
     options = {"25%", "50%", "75%", "100%"},

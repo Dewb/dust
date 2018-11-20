@@ -533,6 +533,7 @@ end
 
 local function stop()
   all_notes_kill()
+  screen_dirty = true
 end
 
 local function reset_step()
@@ -697,8 +698,8 @@ function key(n, z)
       
         -- Time
         if pages.index == 1 then
-          if not beat_clock.external then
-            if beat_clock.playing then
+          if not beat_clock.master.external then
+            if beat_clock.master.playing then
               beat_clock:stop()
             else
               beat_clock:start()
@@ -859,6 +860,7 @@ function init()
   beat_clock = BeatClock.new()
   
   beat_clock.on_step = advance_step
+  beat_clock.on_start = function() screen_dirty = true end
   beat_clock.on_stop = stop
   beat_clock.on_select_internal = function()
     beat_clock:start()
@@ -868,10 +870,12 @@ function init()
     reset_step()
     screen_dirty = true
   end
+  beat_clock.on_bpm_change = function()
+    screen_dirty = true
+  end
   
   midi_in_device = midi.connect(1)
   midi_in_device.event = function(data)
-    beat_clock:process_midi(data)
     if not beat_clock.playing and playback_icon.status == 1 then
       screen_dirty = true
     end
@@ -921,35 +925,15 @@ function init()
       midi_out_channel = value
     end}
   
-  params:add{type = "option", id = "clock", name = "Clock", options = {"Internal", "External"}, default = beat_clock.external or 2 and 1,
-    action = function(value)
-      beat_clock:clock_source_change(value)
-    end}
-  
-  params:add{type = "number", id = "clock_midi_in_device", name = "Clock MIDI In Device", min = 1, max = 4, default = 1,
-    action = function(value)
-      midi_in_device:reconnect(value)
-    end}
-  
-  params:add{type = "option", id = "clock_out", name = "Clock Out", options = {"Off", "On"}, default = beat_clock.send or 2 and 1,
-    action = function(value)
-      if value == 1 then beat_clock.send = false
-      else beat_clock.send = true end
-    end}
+  beat_clock:add_clock_params()
   
   params:add_separator()
   
-  params:add{type = "number", id = "bpm", name = "BPM", min = 1, max = 240, default = beat_clock.bpm,
-    action = function(value)
-      beat_clock:bpm_change(value)
-      screen_dirty = true
-    end}
-  
   params:add{type = "option", id = "step_length", name = "Step Length", options = options.STEP_LENGTH_NAMES, default = 10,
     action = function(value)
-      beat_clock.ticks_per_step = 96 / options.STEP_LENGTH_DIVIDERS[value]
-      beat_clock.steps_per_beat = options.STEP_LENGTH_DIVIDERS[value] / 4
-      beat_clock:bpm_change(beat_clock.bpm)
+      beat_clock.master.ticks_per_step = 96 / options.STEP_LENGTH_DIVIDERS[value]
+      beat_clock.master.steps_per_beat = options.STEP_LENGTH_DIVIDERS[value] / 4
+      beat_clock.master:bpm_change(beat_clock.master.bpm)
     end}
   
   params:add{type = "number", id = "pattern_width", name = "Pattern Width", min = 4, max = 64, default = 16,

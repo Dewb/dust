@@ -656,11 +656,6 @@ function redraw()
 end
 
 
-midi.add = function(dev)
-  dev.event = clk.process_midi
-  print("foulplay: midi device added", dev.id, dev.name)
-end
-
 -- grid stuff - junklight
 
 function g.event(x, y, state)

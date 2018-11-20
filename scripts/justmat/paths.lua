@@ -88,10 +88,6 @@ local cs = require 'controlspec'
 
 local bc = require 'beatclock'
 local clk = bc.new()
-local clk_midi = midi.connect(1)
-clk_midi.event = function(data)
-  clk:process_midi(data)
-end
 
 local note_name = nil
 local last_note_name = nil
@@ -226,8 +222,7 @@ function init()
   screen.line_width(1)
 
   clk.on_step = step
-  clk.on_select_internal = function() end
-  clk.on_select_external = reset_pattern
+  clk.on_select_internal = function() clk:start() end
   clk:add_clock_params()
   params:add_separator()
 
