@@ -24,7 +24,8 @@ function MasterClock.new()
   i.metro.callback = function() i:tick() end
 
   i.child_clocks = {}
-  setmetatable(i.child_clocks, { __mode = "k" }) -- enable weak keys 
+  -- enable weak keys so child clocks will be garbage collected
+  setmetatable(i.child_clocks, { __mode = "k" }) 
   i.num_child_clocks = 0
 
   i:bpm_change(110)
@@ -42,15 +43,21 @@ function MasterClock:send_midi(msg)
 end
 
 function MasterClock:init_midi(source_device)
+  -- clean up previous midi configuration
+  if self.midi_input_device then
+    self.midi_input_device.event = function() end
+  end
   self.midi_input_device = nil
   self.midi_output_devices = {}
   collectgarbage()
 
+  -- connect our handler to the new input device
   if source_device >= 1 and source_device <= 4 then
     self.midi_input_device = midi.connect(source_device)
     self.midi_input_device.event = function(data) self:process_midi(data) end
   end
   
+  -- output devices should not include the input device
   for i = 1, 4 do
     if i ~= source_device then
       table.insert(self.midi_output_devices, midi.connect(i))
@@ -64,16 +71,21 @@ function MasterClock:start()
     self.metro:start()
   end
   self.current_ticks = self.ticks_per_step - 1
+
   self:send_midi({251})
+  
   for child, _ in pairs(self.child_clocks) do
     child.on_start()
   end
+  
 end
 
 function MasterClock:stop()
   self.playing = false
   self.metro:stop()
+
   self:send_midi({252})
+  
   for child, _ in pairs(self.child_clocks) do
     child.on_stop()
   end
@@ -84,6 +96,7 @@ function MasterClock:advance_step()
   if self.step == 0 then
     self.beat = (self.beat + 1) % self.beats_per_bar
   end
+  
   for child, _ in pairs(self.child_clocks) do
     child.step = self.step
     child.beat = self.beat
@@ -92,21 +105,27 @@ function MasterClock:advance_step()
 end
 
 function MasterClock:tick()
+  self:send_midi({248})
+
   self.current_ticks = (self.current_ticks + 1) % self.ticks_per_step
   if self.playing and self.current_ticks == 0 then
     self:advance_step()
   end
-  self:send_midi({248})
 end
 
 function MasterClock:reset(dev_id)
   self.step = self.steps_per_beat - 1
   self.beat = self.beats_per_bar - 1
   self.current_ticks = self.ticks_per_step - 1
+  
   if self.playing then 
     self:send_midi({250})
   else -- force reseting while stopped requires a start/stop (??)
     self:send_midi({250, 252})
+  end
+  
+  for child, _ in pairs(self.child_clocks) do
+    child.on_reset()
   end
 end
 
@@ -144,10 +163,16 @@ function MasterClock:clock_source_change(source)
 end
 
 function MasterClock:bpm_change(bpm)
-  self.bpm = bpm
-  self.metro.time = 60/(self.ticks_per_step * self.steps_per_beat * self.bpm)
-  for child, _ in pairs(self.child_clocks) do
-    child.on_bpm_change(bpm)
+  if self.external then
+    -- todo: if link is the clock source, send bpm change request to link network
+    -- if clock source is midi, do nothing
+  else
+    self.bpm = bpm
+    self.metro.time = 60/(self.ticks_per_step * self.steps_per_beat * self.bpm)
+
+    for child, _ in pairs(self.child_clocks) do
+      child.on_bpm_change(bpm)
+    end
   end
 end
 
@@ -216,6 +241,8 @@ function BeatClock.new(options)
   
   local opts = options or {}
   i.name = opts.name or "clock " .. (theMasterClock:num_children() + 1)
+  
+  -- todo: use these params to implement child clocks that are divisions/multiples of the master clock
   i.multiply = opts.multiply or 1
   i.divide = opts.divide or 1
   
@@ -225,6 +252,7 @@ function BeatClock.new(options)
   i.on_step = function() print(i.name .. " executing step") end
   i.on_start = function() end
   i.on_stop = function() end
+  i.on_reset = function() end
   i.on_bpm_change = function(bpm) end
   i.on_select_internal = function() end
   i.on_select_external = function() end
@@ -236,6 +264,7 @@ function BeatClock.new(options)
 end  
 
 function BeatClock:add_clock_params()
+  -- todo: move master clock params to system menu
   theMasterClock:add_clock_params()
 end
 
